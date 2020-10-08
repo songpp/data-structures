@@ -1,41 +1,37 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE MultiWayIf          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE TupleSections       #-}
 
 module Maze where
 
-
-import Data.Foldable (foldl')
-import Control.Monad (forM_)
-import Control.Monad.Primitive ( PrimMonad(PrimState) )
-import Data.Array ( (!), (//), bounds, Array )
-import Data.Array.IO (IOArray)
-import qualified Data.Array.MArray as M (freeze, newArray, writeArray)
-import Data.HashSet (HashSet)
-import qualified Data.HashSet as Set
-import Data.Maybe (catMaybes)
-import Data.Sequence (Seq ((:<|)), (><))
-import qualified Data.Sequence as Seq
-
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as Map
-
-import           Data.HashPSQ (HashPSQ)
-import qualified Data.HashPSQ as PQ
-
-import System.Random.MWC as R
+import           Control.Monad           (forM_)
+import           Control.Monad.Primitive (PrimMonad (PrimState))
+import           Data.Array              (Array, bounds, (!), (//))
+import           Data.Array.IO           (IOArray)
+import qualified Data.Array.MArray       as M (freeze, newArray, writeArray)
+import           Data.Foldable           (foldl')
+import           Data.HashMap.Strict     (HashMap)
+import qualified Data.HashMap.Strict     as Map
+import           Data.HashPSQ            (HashPSQ)
+import qualified Data.HashPSQ            as PQ
+import           Data.HashSet            (HashSet)
+import qualified Data.HashSet            as Set
+import           Data.Maybe              (catMaybes)
+import           Data.Sequence           (Seq ((:<|)), (><))
+import qualified Data.Sequence           as Seq
+import           System.Random.MWC       as R
 
 data Cell = Empty | Barrier | Start | Goal | Path deriving (Enum, Ord, Eq)
 
 instance Show Cell where
   showsPrec _d c = showString $ case c of
-    Empty -> " "
+    Empty   -> " "
     Barrier -> "❖"
-    Start -> "S"
-    Goal -> "G"
-    Path -> "◻︎"
+    Start   -> "S"
+    Goal    -> "G"
+    Path    -> "◻︎"
 
 type Location = (Int, Int)
 
@@ -70,7 +66,7 @@ genCell g sparseness = do
   return c
 
 genSquareMaze :: Int -> IO Maze
-genSquareMaze size = let s = size - 1 in genRandomMaze (0, 0) (s, s) s s 25
+genSquareMaze size = let s = size - 1 in genRandomMaze (0, 0) (s, s) s s 35
 
 showMaze :: Maze -> IO ()
 showMaze (Maze _start _end (Matrix arr)) = printGrid arr
@@ -109,8 +105,8 @@ flattenPath :: Maybe (Node a) -> [a]
 flattenPath Nothing = []
 flattenPath (Just node) = go node []
   where
-    go (Node i Nothing _ _) xs = i : xs
-    go (Node i (Just n) _ _ ) xs = go n (i : xs)
+    go (Node i Nothing _ _) xs  = i : xs
+    go (Node i (Just n) _ _) xs = go n (i : xs)
 
 renderPath :: Maze -> [Index] -> Matrix
 renderPath (Maze s e (Matrix grid)) xs = Matrix (markPath grid $ filter (\i -> i /= s && i /= e) xs)
@@ -151,50 +147,49 @@ bfs m@(Maze start end _) = go (Seq.singleton $ Node start Nothing 0 0) Set.empty
         unVisitedSuccessors :: Seq (Node Index)
         unVisitedSuccessors = Seq.fromList $ map (\i -> Node i (Just x) 0 0) . filter (not . flip Set.member explored) $ successors m currentIndex
 
-
 euclideanDistance :: Location -> Location -> Double
 euclideanDistance (x1, y1) (x2, y2) = sqrt . fromIntegral $ (x2 - x1) ^ 2 + (y2 - y1) ^ 2
 
 manhattanDistance :: Location -> Location -> Int
 manhattanDistance (x1, y1) (x2, y2) = abs (x2 - x1) + abs (y2 - y1)
 
-
-
-astar :: Maze 
-      -> (Location -> Double) 
-      -- ^ heuristic value function
-      -> Maybe Path
-astar m@(Maze start end _) heuristicFunc = go (PQ.singleton start (priority initialNode) $ initialNode ) (Map.singleton start 0)
+astar ::
+  -- | heuristic value function
+  (Maze -> Location -> Double) ->
+  -- | our maze
+  Maze ->
+  Maybe Path
+astar heuristicFunc m@(Maze start end _) = go (PQ.singleton start (priority initialNode) initialNode) (Map.singleton start 0)
   where
-    initialNode = Node start Nothing 0 (heuristicFunc start)
+    initialNode = Node start Nothing 0 (heuristicFunc m start)
     priority (Node _i _p c h) = c + h
     go :: HashPSQ Index Double (Node Index) -> HashMap Index Double -> Maybe Path
-    go pending explored 
+    go pending explored
       | null pending = Nothing
       | otherwise = case PQ.findMin pending of
-          Just (i, _, n) -> 
-            if i == end then Just n 
-            else let 
-                    newCost = cost n + 1
-                    removeMin = PQ.deleteMin pending
-                    newUnVisitedNodes = map (\l -> Node l (Just n) newCost (heuristicFunc i)) .
-                                        filter (\l -> maybe True (> newCost) (Map.lookup l explored)) $ (successors m i)
-                    newUnVisited = foldl' (\unVisited node -> PQ.insert (idx node) (priority node) node unVisited) removeMin newUnVisitedNodes
-                    newExplored  = foldl' (\costMap node -> Map.insert (idx node) newCost costMap) explored newUnVisitedNodes
-                  in go newUnVisited newExplored
-          Nothing -> Nothing
+        Just (i, _, n) ->
+          if i == end
+            then Just n
+            else
+              let !newCost = cost n + 1
+                  removeMin = PQ.deleteMin pending
+                  newUnVisitedNodes =
+                    map (\l -> Node l (Just n) newCost (heuristicFunc m i))
+                      . filter (\l -> maybe True (> newCost) (Map.lookup l explored))
+                      $ successors m i
+                  newUnVisited = foldl' (\unVisited node -> PQ.insert (idx node) (priority node) node unVisited) removeMin newUnVisitedNodes
+                  newExplored = foldl' (\costMap node -> Map.insert (idx node) newCost costMap) explored newUnVisitedNodes
+               in go newUnVisited newExplored
+        Nothing -> Nothing
 
 manhattanDistanceHeuristicFunc :: Num a => Maze -> Location -> a
-manhattanDistanceHeuristicFunc (Maze _ end _ ) = fromIntegral . manhattanDistance end
-
+manhattanDistanceHeuristicFunc (Maze _ end _) = fromIntegral . manhattanDistance end
 
 runManhattonAstar :: Maze -> Maybe Path
-runManhattonAstar m = astar m (manhattanDistanceHeuristicFunc m)
-
+runManhattonAstar = astar manhattanDistanceHeuristicFunc
 
 renderAstarPath :: Maze -> Matrix
 renderAstarPath m = renderPath m $ findPath runManhattonAstar m
-
 
 -- |  'genSquareMaze 50 >>= return . renderAstarPath'
 -- |  'genSquareMaze 20 >>= return . renderDfsPath'
