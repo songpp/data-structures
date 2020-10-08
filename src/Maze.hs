@@ -1,60 +1,76 @@
-{-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE MultiWayIf          #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TupleSections #-}
 
 module Maze where
 
-import           Control.Monad           (forM_)
-import           Control.Monad.Primitive (PrimMonad (PrimState))
-import           Data.Array              (Array, bounds, (!), (//))
-import           Data.Array.IO           (IOArray)
-import qualified Data.Array.MArray       as M (freeze, newArray, writeArray)
-import           Data.Foldable           (foldl')
-import           Data.HashMap.Strict     (HashMap)
-import qualified Data.HashMap.Strict     as Map
-import           Data.HashPSQ            (HashPSQ)
-import qualified Data.HashPSQ            as PQ
-import           Data.HashSet            (HashSet)
-import qualified Data.HashSet            as Set
-import           Data.Maybe              (catMaybes)
-import           Data.Sequence           (Seq ((:<|)), (><))
-import qualified Data.Sequence           as Seq
-import           System.Random.MWC       as R
+import Control.Monad (forM_)
+import Control.Monad.Primitive (PrimMonad (PrimState))
+import Data.Array (Array, bounds, (!), (//))
+import Data.Array.IO (IOArray)
+import qualified Data.Array.MArray as M (freeze, newArray, writeArray)
+import Data.Foldable (foldl')
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as Map
+import Data.HashPSQ (HashPSQ)
+import qualified Data.HashPSQ as PQ
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as Set
+import Data.Maybe (catMaybes)
+import Data.Sequence (Seq ((:<|)), (><))
+import qualified Data.Sequence as Seq
+import System.Random.MWC as R
 
 data Cell = Empty | Barrier | Start | Goal | Path deriving (Enum, Ord, Eq)
 
 instance Show Cell where
   showsPrec _d c = showString $ case c of
-    Empty   -> " "
+    Empty -> " "
     Barrier -> "❖"
-    Start   -> "S"
-    Goal    -> "G"
-    Path    -> "◻︎"
+    Start -> "S"
+    Goal -> "G"
+    Path -> "◻︎"
 
 type Location = (Int, Int)
 
 type Index = Location
 
-newtype Matrix = Matrix (Array Index Cell)
-  deriving (Eq)
+newtype Matrix = Matrix (Array Index Cell) deriving (Eq)
 
 instance Show Matrix where
-  showsPrec _d (Matrix arr) = showString . unlines $ "" : "--------" : map textRepresentation (toSimpleArray arr)
+  showsPrec _d (Matrix arr) = showString . unlines $ extraInfo : "--------" : map textRepresentation (toSimpleArray arr)
+    where
+      extraInfo = show $ bounds arr
 
 data Maze = Maze Location Location Matrix deriving (Eq, Show)
 
-genRandomMaze :: Location -> Location -> Int -> Int -> Int -> IO Maze
-genRandomMaze start end row column s = do
-  g <- R.createSystemRandom
+defaultSparseness :: Int
+defaultSparseness = 25
+
+-- 生成随机的迷宫
+genRandomMaze ::
+  -- | start location
+  Location ->
+  -- | target location
+  Location ->
+  -- | how many rows
+  Int ->
+  -- | how many columns
+  Int ->
+  -- | how many barrier elements (percent, range 1-100)
+  Int ->
+  IO Maze
+genRandomMaze start end row column sparseness = do
+  rnd <- R.createSystemRandom
   m <- M.newArray ((0, 0), (row, column)) Empty :: IO (IOArray Index Cell)
   forM_ [(r, c) | r <- [0 .. row], c <- [0 .. column]] $ \loc -> do
     cell <-
       if
           | loc == start -> return Start
           | loc == end -> return Goal
-          | otherwise -> genCell g s
+          | otherwise -> genCell rnd sparseness
     M.writeArray m loc cell
   xs <- M.freeze m
   return $ Maze start end (Matrix xs)
@@ -66,7 +82,10 @@ genCell g sparseness = do
   return c
 
 genSquareMaze :: Int -> IO Maze
-genSquareMaze size = let s = size - 1 in genRandomMaze (0, 0) (s, s) s s 35
+genSquareMaze size = let s = size - 1 in genRandomMaze (0, 0) (s, s) s s defaultSparseness
+
+genSparseSquareMaze :: Int -> Int -> IO Maze
+genSparseSquareMaze size sparseness = let s = size - 1 in genRandomMaze (0, 0) (s, s) s s sparseness
 
 showMaze :: Maze -> IO ()
 showMaze (Maze _start _end (Matrix arr)) = printGrid arr
@@ -85,10 +104,10 @@ textRepresentation = foldl (\acc y -> acc ++ show y ++ " ") ""
 successors :: Maze -> Index -> [Index]
 successors (Maze _start _end (Matrix grid)) (x, y) =
   catMaybes
-    [ if x + 1 <= highx && (grid ! (x + 1, y) /= Barrier) then Just (x + 1, y) else Nothing,
-      if y + 1 <= highy && (grid ! (x, y + 1) /= Barrier) then Just (x, y + 1) else Nothing,
-      if x - 1 >= lowx && (grid ! (x - 1, y) /= Barrier) then Just (x - 1, y) else Nothing,
-      if y - 1 >= lowy && (grid ! (x, y - 1) /= Barrier) then Just (x, y - 1) else Nothing
+    [ if x + 1 <= highy && (grid ! (x + 1, y) /= Barrier) then Just (x + 1, y) else Nothing,
+      if y + 1 <= highx && (grid ! (x, y + 1) /= Barrier) then Just (x, y + 1) else Nothing,
+      if x - 1 >= lowy && (grid ! (x - 1, y) /= Barrier) then Just (x - 1, y) else Nothing,
+      if y - 1 >= lowx && (grid ! (x, y - 1) /= Barrier) then Just (x, y - 1) else Nothing
     ]
   where
     ((lowy, lowx), (highy, highx)) = bounds grid
@@ -105,7 +124,7 @@ flattenPath :: Maybe (Node a) -> [a]
 flattenPath Nothing = []
 flattenPath (Just node) = go node []
   where
-    go (Node i Nothing _ _) xs  = i : xs
+    go (Node i Nothing _ _) xs = i : xs
     go (Node i (Just n) _ _) xs = go n (i : xs)
 
 renderPath :: Maze -> [Index] -> Matrix
@@ -120,7 +139,11 @@ renderDfsPath m = renderPath m $ findPath dfs m
 renderBfsPath :: Maze -> Matrix
 renderBfsPath m = renderPath m $ findPath bfs m
 
--- 深度有限搜索
+
+searchPath :: Maze -> (Maze -> Maybe Path) -> Matrix
+searchPath m alg = renderPath m $ findPath alg m
+
+-- 深度搜索
 dfs :: Maze -> Maybe Path
 dfs m@(Maze start end _) = go [Node start Nothing 0 0] Set.empty
   where
@@ -133,7 +156,7 @@ dfs m@(Maze start end _) = go [Node start Nothing 0 0] Set.empty
         currentIndex = idx x
         unVisitedSuccessors = filter (not . flip Set.member explored) (successors m currentIndex)
 
--- 广度有限搜索
+-- 广度搜索
 bfs :: Maze -> Maybe Path
 bfs m@(Maze start end _) = go (Seq.singleton $ Node start Nothing 0 0) Set.empty
   where
@@ -163,6 +186,7 @@ astar heuristicFunc m@(Maze start end _) = go (PQ.singleton start (priority init
   where
     initialNode = Node start Nothing 0 (heuristicFunc m start)
     priority (Node _i _p c h) = c + h
+
     go :: HashPSQ Index Double (Node Index) -> HashMap Index Double -> Maybe Path
     go pending explored
       | null pending = Nothing
@@ -172,10 +196,12 @@ astar heuristicFunc m@(Maze start end _) = go (PQ.singleton start (priority init
             then Just n
             else
               let !newCost = cost n + 1
-                  removeMin = PQ.deleteMin pending
-                  newUnVisitedNodes =
+                  !removeMin = PQ.deleteMin pending
+
+                  -- 
+                  !newUnVisitedNodes =
                     map (\l -> Node l (Just n) newCost (heuristicFunc m i))
-                      . filter (\l -> maybe True (> newCost) (Map.lookup l explored))
+                      . filter (maybe True (> newCost) . flip Map.lookup explored)
                       $ successors m i
                   newUnVisited = foldl' (\unVisited node -> PQ.insert (idx node) (priority node) node unVisited) removeMin newUnVisitedNodes
                   newExplored = foldl' (\costMap node -> Map.insert (idx node) newCost costMap) explored newUnVisitedNodes
@@ -185,12 +211,21 @@ astar heuristicFunc m@(Maze start end _) = go (PQ.singleton start (priority init
 manhattanDistanceHeuristicFunc :: Num a => Maze -> Location -> a
 manhattanDistanceHeuristicFunc (Maze _ end _) = fromIntegral . manhattanDistance end
 
-runManhattonAstar :: Maze -> Maybe Path
-runManhattonAstar = astar manhattanDistanceHeuristicFunc
+manhattonAstar :: Maze -> Maybe Path
+manhattonAstar = astar manhattanDistanceHeuristicFunc
 
 renderAstarPath :: Maze -> Matrix
-renderAstarPath m = renderPath m $ findPath runManhattonAstar m
+renderAstarPath m = renderPath m $ findPath manhattonAstar m
 
--- |  'genSquareMaze 50 >>= return . renderAstarPath'
--- |  'genSquareMaze 20 >>= return . renderDfsPath'
--- |  genSquareMaze 15 >>= return . renderBfsPath
+-- |
+-- m <- genSquareMaze 50
+--
+-- renderAstarPath m
+-- renderDfsPath m
+-- renderBfsPath m
+
+
+-- | import Control.Monad (forM)
+-- | m <- genRandomMaze (2,4) (4, 20) 5 30 15
+-- | alg = [bfs, dfs, manhattonAstar]
+-- | forM alg  (searchPath m)
