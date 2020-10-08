@@ -1,0 +1,116 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 11bb73ddc43bf8e45f55f614393193e8b0f4d976ea538c826c3b44ca9ea5c740
+
+name:           data-structures
+version:        0.1.0.0
+description:    Nothing left here
+homepage:       https://github.com/songpp/data-structures#readme
+bug-reports:    https://github.com/songpp/data-structures/issues
+author:         spp
+maintainer:     foldr.spp@gmail.com
+copyright:      2020 spp
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/songpp/data-structures
+
+library
+  exposed-modules:
+      Basics
+      BPlusTree
+      Hanoi
+      Lib
+      Maze
+      Semi
+      Tree
+      Trie
+      TwoThreeFourTree
+      Unpacks
+  other-modules:
+      Paths_data_structures
+  hs-source-dirs:
+      src
+  default-extensions: GADTs
+  build-depends:
+      array
+    , base
+    , bytestring
+    , containers
+    , hashable
+    , mtl
+    , mwc-random
+    , pqueue
+    , primitive
+    , psqueues
+    , random
+    , stm
+    , text
+    , unordered-containers
+    , vector
+  default-language: Haskell2010
+
+executable data-structures-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_data_structures
+  hs-source-dirs:
+      app
+  default-extensions: GADTs
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      array
+    , base
+    , bytestring
+    , containers
+    , data-structures
+    , hashable
+    , mtl
+    , mwc-random
+    , pqueue
+    , primitive
+    , psqueues
+    , random
+    , stm
+    , text
+    , unordered-containers
+    , vector
+  default-language: Haskell2010
+
+test-suite data-structures-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_data_structures
+  hs-source-dirs:
+      test
+  default-extensions: GADTs
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      array
+    , base
+    , bytestring
+    , containers
+    , data-structures
+    , hashable
+    , mtl
+    , mwc-random
+    , pqueue
+    , primitive
+    , psqueues
+    , random
+    , stm
+    , text
+    , unordered-containers
+    , vector
+  default-language: Haskell2010
