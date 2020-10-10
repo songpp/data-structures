@@ -127,21 +127,20 @@ flattenPath (Just node) = go node []
     go (Node i Nothing _ _) xs = i : xs
     go (Node i (Just n) _ _) xs = go n (i : xs)
 
-renderPath :: Maze -> [Index] -> Matrix
-renderPath (Maze s e (Matrix grid)) xs = Matrix (markPath grid $ filter (\i -> i /= s && i /= e) xs)
+renderPath :: [Index] -> Maze -> Matrix
+renderPath xs (Maze s e (Matrix grid)) = Matrix (markPath grid $ filter (\i -> i /= s && i /= e) xs)
   where
     markPath :: Array Index Cell -> [Index] -> Array Index Cell
     markPath grid path = grid // map (,Path) path
 
 renderDfsPath :: Maze -> Matrix
-renderDfsPath m = renderPath m $ findPath dfs m
+renderDfsPath m = renderPath (findPath dfs m) m
 
 renderBfsPath :: Maze -> Matrix
-renderBfsPath m = renderPath m $ findPath bfs m
+renderBfsPath m = renderPath (findPath bfs m) m
 
-
-searchPath :: Maze -> (Maze -> Maybe Path) -> Matrix
-searchPath m alg = renderPath m $ findPath alg m
+searchPath :: (Maze -> Maybe Path) -> Maze -> Matrix
+searchPath alg m = renderPath (findPath alg m) m
 
 -- 深度搜索
 dfs :: Maze -> Maybe Path
@@ -168,7 +167,11 @@ bfs m@(Maze start end _) = go (Seq.singleton $ Node start Nothing 0 0) Set.empty
       where
         currentIndex = idx x
         unVisitedSuccessors :: Seq (Node Index)
-        unVisitedSuccessors = Seq.fromList $ map (\i -> Node i (Just x) 0 0) . filter (not . flip Set.member explored) $ successors m currentIndex
+        unVisitedSuccessors =
+          Seq.fromList
+            . map (\i -> Node i (Just x) 0 0)
+            . filter (not . flip Set.member explored)
+            $ successors m currentIndex
 
 euclideanDistance :: Location -> Location -> Double
 euclideanDistance (x1, y1) (x2, y2) = sqrt . fromIntegral $ (x2 - x1) ^ 2 + (y2 - y1) ^ 2
@@ -182,7 +185,8 @@ astar ::
   -- | our maze
   Maze ->
   Maybe Path
-astar heuristicFunc m@(Maze start end _) = go (PQ.singleton start (priority initialNode) initialNode) (Map.singleton start 0)
+astar heuristicFunc m@(Maze start end _) =
+  go (PQ.singleton start (priority initialNode) initialNode) (Map.singleton start 0)
   where
     initialNode = Node start Nothing 0 (heuristicFunc m start)
     priority (Node _i _p c h) = c + h
@@ -198,13 +202,20 @@ astar heuristicFunc m@(Maze start end _) = go (PQ.singleton start (priority init
               let !newCost = cost n + 1
                   !removeMin = PQ.deleteMin pending
 
-                  -- 
                   !newUnVisitedNodes =
                     map (\l -> Node l (Just n) newCost (heuristicFunc m i))
                       . filter (maybe True (> newCost) . flip Map.lookup explored)
                       $ successors m i
-                  newUnVisited = foldl' (\unVisited node -> PQ.insert (idx node) (priority node) node unVisited) removeMin newUnVisitedNodes
-                  newExplored = foldl' (\costMap node -> Map.insert (idx node) newCost costMap) explored newUnVisitedNodes
+                  newUnVisited =
+                    foldl'
+                      (\unVisited node -> PQ.insert (idx node) (priority node) node unVisited)
+                      removeMin
+                      newUnVisitedNodes
+                  newExplored =
+                    foldl'
+                      (\costMap node -> Map.insert (idx node) newCost costMap)
+                      explored
+                      newUnVisitedNodes
                in go newUnVisited newExplored
         Nothing -> Nothing
 
@@ -215,7 +226,7 @@ manhattonAstar :: Maze -> Maybe Path
 manhattonAstar = astar manhattanDistanceHeuristicFunc
 
 renderAstarPath :: Maze -> Matrix
-renderAstarPath m = renderPath m $ findPath manhattonAstar m
+renderAstarPath m = renderPath (findPath manhattonAstar m) m
 
 -- |
 -- m <- genSquareMaze 50
@@ -223,7 +234,6 @@ renderAstarPath m = renderPath m $ findPath manhattonAstar m
 -- renderAstarPath m
 -- renderDfsPath m
 -- renderBfsPath m
-
 
 -- | import Control.Monad (forM)
 -- | m <- genRandomMaze (2,4) (4, 20) 5 30 15
