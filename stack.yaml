@@ -3,4 +3,4 @@ build:
   executable-profiling: true
 packages:
 - .
-resolver: lts-16.17
+resolver: lts-16.18

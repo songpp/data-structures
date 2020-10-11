@@ -52,12 +52,12 @@ incrTVars :: IO ()
 incrTVars = do
   c <- makeCounter
   replicateM_ 10 $
-    ( atomically $ do
+    atomically (
+      do
         i <- readTVar c
         writeTVar c (i + 1)
         return i
-    )
-      >>= print
+    ) >>= print
 
 data BST a where
   Leaf :: a -> BST a
