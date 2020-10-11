@@ -4,11 +4,12 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Maze where
 
-import Control.Monad (forM_, join, liftM2)
-import Control.Monad.Primitive (PrimMonad (PrimState))
+import Control.Applicative (liftA2)
+import Control.Monad (forM_, join)
 import Data.Array (Array, bounds, (!), (//))
 import Data.Array.IO (IOArray)
 import qualified Data.Array.MArray as M (freeze, newArray, writeArray)
@@ -41,7 +42,8 @@ type Index = Location
 newtype Matrix = Matrix (Array Index Cell) deriving (Eq)
 
 instance Show Matrix where
-  showsPrec _d (Matrix arr) = showString . unlines $ extraInfo : "--------" : map textRepresentation (toSimpleArray arr)
+  showsPrec _d (Matrix arr) = 
+    showString . unlines $ extraInfo : "--------" : map textRepresentation (toSimpleArray arr)
     where
       extraInfo = show $ bounds arr
 
@@ -51,30 +53,21 @@ defaultSparseness :: Int
 defaultSparseness = 25
 
 -- 生成随机的迷宫
-genRandomMaze ::
-  -- | start location
-  Location ->
-  -- | target location
-  Location ->
-  -- | how many rows
-  Int ->
-  -- | how many columns
-  Int ->
-  -- | how many barrier elements (percent, range 1-100)
-  Int ->
-  IO Maze
+genRandomMaze :: Location   -- ^ start location
+              -> Location   -- ^ target location 
+              -> Int        -- ^ how many rows
+              -> Int        -- ^ how many columns
+              -> Int        -- ^ how many barrier elements (percent, range 1-100)
+              -> IO Maze    -- ^ result Maze
 genRandomMaze start end row column sparseness = do
-    rnd <- R.createSystemRandom
-    m <- M.newArray ((0, 0), (row, column)) Empty :: IO (IOArray Index Cell)
-    forM_ [(r, c) | r <- [0 .. row], c <- [0 .. column]] $ \loc -> do
-      cell <-
-        if
-            | loc == start -> return Start
-            | loc == end -> return Goal
-            | otherwise -> genCell rnd sparseness
-      M.writeArray m loc cell
-    xs <- M.freeze m
-    return $ Maze start end (Matrix xs)
+  rnd <- R.createSystemRandom
+  m <- M.newArray ((0, 0), (row, column)) Empty :: IO (IOArray Index Cell)
+  forM_ [(r, c) | r <- [0 .. row], c <- [0 .. column]] $ \loc -> 
+    M.writeArray m loc =<< if | loc == start -> return Start
+                              | loc == end   -> return Goal
+                              | otherwise    -> genCell rnd sparseness
+  xs <- M.freeze m
+  return $ Maze start end (Matrix xs)
   where
     genCell g sparseness = do
       x <- R.uniformR (0, 100) g
@@ -106,14 +99,20 @@ successors (Maze _start _end (Matrix grid)) (x, y) =
   catMaybes
     [ if x + 1 <= highy && (grid ! (x + 1, y) /= Barrier) then Just (x + 1, y) else Nothing,
       if y + 1 <= highx && (grid ! (x, y + 1) /= Barrier) then Just (x, y + 1) else Nothing,
-      if x - 1 >= lowy && (grid ! (x - 1, y) /= Barrier) then Just (x - 1, y) else Nothing,
-      if y - 1 >= lowx && (grid ! (x, y - 1) /= Barrier) then Just (x, y - 1) else Nothing
+      if x - 1 >= lowy  && (grid ! (x - 1, y) /= Barrier) then Just (x - 1, y) else Nothing,
+      if y - 1 >= lowx  && (grid ! (x, y - 1) /= Barrier) then Just (x, y - 1) else Nothing
     ]
   where
     ((lowy, lowx), (highy, highx)) = bounds grid
 
 -- data Node a = Node {idx :: a, prev :: Maybe (Node a)} deriving (Show, Eq)
 data Node a = Node {idx :: a, prev :: Maybe (Node a), cost :: Double, heuristic :: Double} deriving (Show, Eq)
+
+newNode :: Node idx -> Double -> Double -> idx -> Node idx
+newNode p cost hv idx = Node idx (Just p) cost hv
+
+priority :: Node a -> Double
+priority (Node _i _p c h) = c + h
 
 type Path = Node Index
 
@@ -179,38 +178,31 @@ euclideanDistance (x1, y1) (x2, y2) = sqrt . fromIntegral $ (x2 - x1) ^ 2 + (y2 
 manhattanDistance :: Location -> Location -> Int
 manhattanDistance (x1, y1) (x2, y2) = abs (x2 - x1) + abs (y2 - y1)
 
-priority (Node _i _p c h) = c + h
-
-astar ::
-  -- | heuristic value function
-  (Maze -> Location -> Double) ->
-  -- | our maze
-  Maze ->
-  Maybe Path
+astar :: (Maze -> Location -> Double) -- ^ heuristic value function
+      -> Maze -- ^ the maze
+      -> Maybe Path -- ^ result path
 astar heuristicFunc m@(Maze start end _) =
   go (PQ.singleton start (priority initialNode) initialNode) (Map.singleton start 0)
   where
+    -- starting point
     initialNode = Node start Nothing 0 (heuristicFunc m start)
-
-    go :: HashPSQ Index Double (Node Index) -> HashMap Index Double -> Maybe Path
-    go pending explored
-      | null pending = Nothing
-      | otherwise = case PQ.findMin pending of
-        Just (i, _, n) ->
-          if i == end
-            then Just n
-            else
-              let !newCost = cost n + 1
-                  removeMin = PQ.deleteMin pending
-                  newUnVisitedNodes =
-                    map (\i -> Node i (Just n) newCost (heuristicFunc m i))
-                      . filter (maybe True (> newCost) . flip Map.lookup explored)
-                      $ successors m i
-                  newUnVisited =
-                    foldl' (flip . join $ liftM2 PQ.insert idx priority) removeMin newUnVisitedNodes
-                  newExplored =
-                    foldl' (flip $ flip Map.insert newCost . idx) explored newUnVisitedNodes
-               in go newUnVisited newExplored
+    
+    -- | do actual search 
+    go :: HashPSQ Index Double (Node Index)  -- ^ all nodes waiting for visiting 
+       -> HashMap Index Double -- ^ already visited
+       -> Maybe Path -- ^ result path
+    go (PQ.minView -> Just (i, _, prevNode, pending)) explored
+      | i == end = Just prevNode 
+      | otherwise = go newPending newExplored
+      where
+        !newCost = cost prevNode + 1
+        !newHeurVal = heuristicFunc m i
+        unVisitedSuccessors = map (newNode prevNode newCost newHeurVal)
+                                . filter (maybe True (> newCost) . flip Map.lookup explored) 
+                                $ successors m i
+        newPending  = foldl' (flip . join $ liftA2 PQ.insert idx priority) pending unVisitedSuccessors
+        newExplored = foldl' (flip $ flip Map.insert newCost . idx) explored unVisitedSuccessors
+    go _ _ = Nothing
 
 manhattanDistanceHeuristicFunc :: Num a => Maze -> Location -> a
 manhattanDistanceHeuristicFunc (Maze _ end _) = fromIntegral . manhattanDistance end
@@ -237,4 +229,4 @@ renderAstarPath m = renderPath (findPath manhattonAstar m) m
 
 -- or simply:
 
--- | forM [bfs, dfs, manhattonAstar] searchPath `fmap` genRandomMaze (2,4) (4, 20) 5 30 15
+-- | forM [bfs, dfs, manhattonAstar] searchPath <$> genRandomMaze (2,4) (4, 20) 5 30 20
