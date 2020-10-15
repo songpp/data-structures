@@ -207,11 +207,11 @@ astar heuristicFunc m@(Maze start end _) =
 manhattanDistanceHeuristicFunc :: Num a => Maze -> Location -> a
 manhattanDistanceHeuristicFunc (Maze _ end _) = fromIntegral . manhattanDistance end
 
-manhattonAstar :: Maze -> Maybe Path
-manhattonAstar = astar manhattanDistanceHeuristicFunc
+manhattanAstar :: Maze -> Maybe Path
+manhattanAstar = astar manhattanDistanceHeuristicFunc
 
 renderAstarPath :: Maze -> Matrix
-renderAstarPath m = renderPath (findPath manhattonAstar m) m
+renderAstarPath m = renderPath (findPath manhattanAstar m) m
 
 -- |
 -- m <- genSquareMaze 50
