@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 11bb73ddc43bf8e45f55f614393193e8b0f4d976ea538c826c3b44ca9ea5c740
+-- hash: 1fb170669b2fff680c6dfdd75bf77cf7c6aed100cd7289b1c603a9af3efe92dd
 
 name:           data-structures
 version:        0.1.0.0
@@ -12,7 +12,7 @@ description:    Nothing left here
 homepage:       https://github.com/songpp/data-structures#readme
 bug-reports:    https://github.com/songpp/data-structures/issues
 author:         spp
-maintainer:     foldr.spp@gmail.com
+maintainer:     foldr.spp at gmail.com
 copyright:      2020 spp
 license:        BSD3
 license-file:   LICENSE
@@ -43,18 +43,24 @@ library
       src
   default-extensions: GADTs
   build-depends:
-      array
+      HUnit
+    , array
     , base
     , bytestring
     , containers
+    , generic-lens
     , hashable
+    , lens
     , mtl
     , mwc-random
-    , pqueue
     , primitive
     , psqueues
     , random
+    , smallcheck
     , stm
+    , tasty
+    , tasty-hunit
+    , tasty-smallcheck
     , text
     , unordered-containers
     , vector
@@ -69,19 +75,25 @@ executable data-structures-exe
   default-extensions: GADTs
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      array
+      HUnit
+    , array
     , base
     , bytestring
     , containers
     , data-structures
+    , generic-lens
     , hashable
+    , lens
     , mtl
     , mwc-random
-    , pqueue
     , primitive
     , psqueues
     , random
+    , smallcheck
     , stm
+    , tasty
+    , tasty-hunit
+    , tasty-smallcheck
     , text
     , unordered-containers
     , vector
@@ -89,27 +101,34 @@ executable data-structures-exe
 
 test-suite data-structures-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: tests.hs
   other-modules:
+      BasicsTest
       Paths_data_structures
   hs-source-dirs:
       test
   default-extensions: GADTs
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      array
+      HUnit
+    , array
     , base
     , bytestring
     , containers
     , data-structures
+    , generic-lens
     , hashable
+    , lens
     , mtl
     , mwc-random
-    , pqueue
     , primitive
     , psqueues
     , random
+    , smallcheck
     , stm
+    , tasty
+    , tasty-hunit
+    , tasty-smallcheck
     , text
     , unordered-containers
     , vector

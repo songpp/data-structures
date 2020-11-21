@@ -4,7 +4,7 @@ library:
 tests:
   data-structures-test:
     source-dirs: test
-    main: Spec.hs
+    main: tests.hs
     ghc-options:
     - -threaded
     - -rtsopts
@@ -12,7 +12,7 @@ tests:
     dependencies:
     - data-structures
 copyright: 2020 spp
-maintainer: foldr.spp@gmail.com
+maintainer: foldr.spp at gmail.com
 dependencies:
 - containers
 - stm
@@ -21,7 +21,6 @@ dependencies:
 - text
 - bytestring
 - vector
-- containers
 - random
 - mtl
 - mwc-random
@@ -30,7 +29,14 @@ dependencies:
 - unordered-containers
 - hashable
 - psqueues
-- pqueue
+- generic-lens
+- lens
+- smallcheck
+- tasty
+- HUnit
+- tasty-smallcheck
+- tasty-hunit
+
 
 name: data-structures
 version: 0.1.0.0

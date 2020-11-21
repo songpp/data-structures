@@ -50,7 +50,7 @@ instance Show Matrix where
 data Maze = Maze Location Location Matrix deriving (Eq, Show)
 
 defaultSparseness :: Int
-defaultSparseness = 25
+defaultSparseness = 20
 
 -- 生成随机的迷宫
 genRandomMaze :: Location   -- ^ start location
@@ -92,7 +92,7 @@ toSimpleArray grid =
    in [[grid ! (row, col) | col <- [lowx .. highx]] | row <- [lowy .. highy]]
 
 textRepresentation :: Show a => [a] -> String
-textRepresentation = foldl (\acc y -> acc ++ show y ++ " ") ""
+textRepresentation = foldl' (\acc y -> acc ++ show y ++ " ") ""
 
 successors :: Maze -> Index -> [Index]
 successors (Maze _start _end (Matrix grid)) (x, y) =
@@ -188,7 +188,7 @@ astar heuristicFunc m@(Maze start end _) =
     initialNode = Node start Nothing 0 (heuristicFunc m start)
     
     -- | do actual search 
-    go :: HashPSQ Index Double (Node Index)  -- ^ all nodes waiting for visiting 
+    go :: HashPSQ Index Double (Node Index)  -- ^ all nodes waiting for visiting
        -> HashMap Index Double -- ^ already visited
        -> Maybe Path -- ^ result path
     go (PQ.minView -> Just (i, _, prevNode, pending)) explored
@@ -229,4 +229,4 @@ renderAstarPath m = renderPath (findPath manhattanAstar m) m
 
 -- or simply:
 
--- | forM [bfs, dfs, manhattonAstar] searchPath <$> genRandomMaze (2,4) (4, 20) 5 30 20
+-- | result <- forM [bfs, dfs, manhattanAstar] searchPath <$> genRandomMaze (2,4) (4, 20) 5 30 20

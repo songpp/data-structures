@@ -1,25 +1,33 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GADTs #-}
 
 module Basics where
 
+import Data.Foldable (foldl')
 import qualified Data.List as L
 import Data.Map (Map)
 import qualified Data.Map as M
+import Data.Traversable (forM)
+import GHC.Generics (Generic)
 
 sum1 :: [Int] -> Int
 sum1 [] = 0
-sum1 (x : xs) = x + sum1 xs
+sum1 (x : xs) = foldr (+) 0 xs
 
 sum' :: Int -> [Int] -> Int
 sum' acc [] = acc
 sum' acc (x : xs) = let acc' = acc + x in seq acc' (sum' acc' xs)
 
-fib_mem :: Int -> Integer
-fib_mem = (map fibnaci [0 ..] !!)
+strictSum :: [Int] -> Int
+strictSum = foldl' (+) 0
+
+fibMem :: Int -> Integer
+fibMem = (map fibnaci [0 ..] !!)
   where
     fibnaci 0 = 1
     fibnaci 1 = 1
-    fibnaci n = fib_mem (n - 2) + fib_mem (n - 1)
+    fibnaci n = fibMem (n - 2) + fibMem (n - 1)
 
 -- map fibnaci [0..] !!
 -- (fib 0 : map fib [1..])
@@ -38,3 +46,48 @@ twoSum2 xs n = not . L.null $ L.filter (uncurry findTarget) indexed
     findTarget x i
       | Just s <- m M.!? (n - x) = s /= i
       | otherwise = False
+
+newtype Stack a = Stack [a]
+
+isEmpty :: Stack a -> Bool
+isEmpty (Stack []) = True
+isEmpty _ = False
+
+emptyStack :: Stack a
+emptyStack = fromList []
+
+fromList :: [a] -> Stack a
+fromList = Stack
+
+push :: a -> Stack a -> Stack a
+push a (Stack xs) = Stack (a : xs)
+
+pop :: Stack a -> (Maybe a, Stack a)
+pop (Stack (x : xs)) = (Just x, Stack xs)
+pop s = (Nothing, s)
+
+
+
+data Queue a = Queue
+  { _size :: Int,
+    _front :: [a],
+    _tail :: [a]
+  }
+  deriving (Show, Generic)
+
+qsize :: Queue a -> Int
+qsize (Queue s _ _) = s
+
+emptyQueue :: Queue a
+emptyQueue = Queue 0 [] []
+
+enqueue :: a -> Queue a -> Queue a
+enqueue a (Queue s f t) = Queue (s + 1) (a : f) t
+
+dequeue :: Queue a -> (Maybe a, Queue a)
+dequeue q@(Queue 0 _ _) = (Nothing, q)
+dequeue (Queue size f (x : xs)) = (Just x, Queue (size - 1) f xs)
+dequeue (Queue s f []) = dequeue (Queue s [] (reverse f))
+
+instance Eq a => Eq (Queue a) where
+  (Queue s1 fs1 ts1) == (Queue s2 fs2 ts2) = s1 == s2 && fs1 ++ ts1 == fs2 ++ ts2

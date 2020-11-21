@@ -1,6 +1,5 @@
 :set prompt "%s \n > "
 
-
 :set -funbox-strict-fields
 :set -XBangPatterns
 :set -XGADTs

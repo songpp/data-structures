@@ -3,4 +3,4 @@ build:
   executable-profiling: true
 packages:
 - .
-resolver: lts-16.18
+resolver: nightly-2020-11-21
