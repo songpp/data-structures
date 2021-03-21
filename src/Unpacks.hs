@@ -5,10 +5,10 @@
 
 module Unpacks where
 
+import Control.Lens.TH (makeLenses)
 import qualified Data.Vector.Generic.Mutable as M
 import qualified Data.Vector.Unboxed as U
 import GHC.Generics (Generic)
-import Control.Lens.TH (makeLenses)
 
 data PairP = Pair Int Int deriving (Show)
 
@@ -25,3 +25,4 @@ data Request a = MakeRequest
   deriving (Show, Eq, Generic)
 
 $(makeLenses ''Request)
+

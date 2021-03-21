@@ -1,5 +1,7 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GADTs #-}
 
 module Basics where
@@ -10,14 +12,12 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Traversable (forM)
 import GHC.Generics (Generic)
+import Control.Lens.TH (makeLenses)
 
-sum1 :: [Int] -> Int
-sum1 [] = 0
-sum1 (x : xs) = foldr (+) 0 xs
 
 sum' :: Int -> [Int] -> Int
 sum' acc [] = acc
-sum' acc (x : xs) = let acc' = acc + x in seq acc' (sum' acc' xs)
+sum' acc (x : xs) = let !acc' = acc + x in seq acc' (sum' acc' xs)
 
 strictSum :: [Int] -> Int
 strictSum = foldl' (+) 0
@@ -47,7 +47,9 @@ twoSum2 xs n = not . L.null $ L.filter (uncurry findTarget) indexed
       | Just s <- m M.!? (n - x) = s /= i
       | otherwise = False
 
-newtype Stack a = Stack [a]
+
+-- stack
+newtype Stack a = Stack [a] deriving (Show, Eq)
 
 isEmpty :: Stack a -> Bool
 isEmpty (Stack []) = True
@@ -66,14 +68,14 @@ pop :: Stack a -> (Maybe a, Stack a)
 pop (Stack (x : xs)) = (Just x, Stack xs)
 pop s = (Nothing, s)
 
-
-
 data Queue a = Queue
   { _size :: Int,
     _front :: [a],
     _tail :: [a]
   }
   deriving (Show, Generic)
+
+$(makeLenses ''Queue)
 
 qsize :: Queue a -> Int
 qsize (Queue s _ _) = s

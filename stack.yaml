@@ -3,4 +3,5 @@ build:
   executable-profiling: true
 packages:
 - .
-resolver: nightly-2020-11-21
+compiler-check: newer-minor
+resolver: lts-17.6

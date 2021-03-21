@@ -36,6 +36,9 @@ dependencies:
 - HUnit
 - tasty-smallcheck
 - tasty-hunit
+- QuickCheck
+- quickcheck-text
+- quickcheck-instances
 
 
 name: data-structures
